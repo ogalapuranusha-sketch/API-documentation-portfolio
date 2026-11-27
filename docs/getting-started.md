@@ -112,5 +112,5 @@ the API and integrate it into your application:
   available endpoints, parameters, request bodies,
   responses, and error codes.
 
-- [OpenAPI Specification](../openapi.yaml): Explore
+- [OpenAPI Specification](../openapi.yml): Explore
   the machine-readable API contract.
