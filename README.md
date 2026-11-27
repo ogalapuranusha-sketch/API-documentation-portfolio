@@ -32,4 +32,4 @@ For detailed setup instructions and example requests, see the [Getting Started G
 - [Getting Started](docs/getting-started.md)
 - [API Reference](docs/api-reference.md)
 - [Specification Review Report](docs/specification-review.md)
-- [OpenAPI Specification](openapi.yaml)
+- [OpenAPI Specification](openapi.yml)
