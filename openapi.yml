@@ -1,0 +1,624 @@
+openapi: 3.0.0
+info:
+  title: Employee API
+  version: 1.0.0
+  description: API for managing employee data.
+
+components:
+  schemas:
+    Employee:
+      type: object
+      properties:
+        employeeId:
+          type: integer
+          minimum: 1
+        firstName:
+          type: string 
+        lastName:
+          type: string 
+        email:
+          type: string
+          format: email
+        department:
+          type: string
+          enum:
+           - Engineering
+           - HR
+           - Finance
+           - Marketing
+        status:
+         type: string
+         enum:
+          - active
+          - inactive
+      required:
+        - employeeId
+        - firstName
+        - lastName
+        - email
+        - department
+        - status
+    EmployeeRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+          description: Must be a valid email address that is not already registered.
+        department:
+          type: string
+          enum:
+            - Engineering
+            - HR
+            - Finance
+            - Marketing
+        employmentType:
+          type: string
+          enum:
+            - full-time
+            - part-time
+        phone:
+          type: string
+        managerId:
+          type: integer
+          minimum: 1
+
+      required:
+          - firstName
+          - lastName
+          - email
+          - department
+          - employmentType
+
+    EmployeeUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+          description: Must be a unique and valid email address.
+        department:
+          type: string
+          enum:
+            - Engineering
+            - HR
+            - Finance
+            - Marketing
+          description: Department must be one of the predefined values.
+        employmentType:
+          type: string
+          enum:
+            - full-time
+            - part-time
+          description: Employment type must be one of the predefined values.
+        phone:
+          type: string
+          nullable: true
+          example: "+919876543211"
+        managerId:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 1060
+          description:  Must be a positive integer or null to remove the manager assignment.
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+    EmployeeSearchResponse:
+      type: object
+      required: 
+            - employees
+            - pagination
+      properties:
+        employees:
+          type: array
+          description: List of employees matching the search criteria.
+          items:
+            $ref: '#/components/schemas/Employee'
+        pagination:
+            $ref: '#/components/schemas/pagination'
+    pagination:
+      type: object
+      required:
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
+      description: Pagination metadata.
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Requested page number.
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Effective number of records requested per page.  
+        totalItems:
+          type: integer
+          minimum: 0
+          description: Total matching employees across all pages.
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Total pages, calculated using ceil(totalItems / pageSize).
+        hasNextPage:
+          type: boolean
+          description: This is true when another page of results exists.
+        hasPreviousPage:
+          type: boolean
+          description: This is true when an earlier page exists.
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+  responses:
+    RetrieveDeleteEmployeeBadRequestError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: Invalid employee ID
+              message: Employee ID must be a positive integer.
+
+    SearchEmployeeBadRequestError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: Invalid query parameter
+              message: pageSize must be between 1 and 100.
+
+    CreateEmployeeBadRequestError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: Missing required fields or invalid input
+              message: firstName is required.
+
+    UpdateEmployeeBadRequestError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: Invalid employee ID or request body.
+              message: At least one field must be provided for update.
+
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: Access token error.
+              message: The bearer token is missing or invalid.
+
+    NotFoundError:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: The requested employee record is not found.
+              message: Employee ID does not exist.
+
+    CreateUpdateConflictError:
+      description: Conflict - employee email already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: The request conflicts with existing employee data or dependencies.
+              message: The supplied email address already belongs to another employee.
+
+    DeleteConflictError:
+      description: Conflict - employee has existing dependencies.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: The request conflicts with existing employee data or dependencies.
+              message: Employee cannot be deleted because they are assigned as a manager to other employees.
+
+    UnprocessableContentError:
+      description: Unprocessable content
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: The request is syntactically valid but contains semantically invalid data.
+              message: The supplied non-null managerId does not identify an existing employee.
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: 
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+              error: Unexpected server failure.
+              message: An unexpected server error occurred while processing the request.
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+
+paths:
+  /api/v2/employees/{employeeId}:
+    get:
+      summary: Get employee by ID.
+      description: Retrieve details for a specific employee using their unique ID.
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          description: Unique employee identifier. Must be a positive integer.
+          schema:
+            type: integer
+            minimum: 1
+            
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+              example:
+                  employeeId: 1058
+                  firstName: "Anita"
+                  lastName: "Sharma"
+                  email: "anita@example.com"
+                  department: "Engineering"
+                  status: "active"
+        '400':
+          $ref: '#/components/responses/RetrieveDeleteEmployeeBadRequestError'
+
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+          
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+          
+
+
+    patch:
+      summary: Update Employee
+      description: Partially updates an existing employee record. Only fields included in the request body are updated. Omitted fields remain unchanged. Set phone or managerId to null to clear their existing values.
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          description: Unique employee identifier. Must be a positive integer.
+          schema:
+            type: integer
+            minimum: 1
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeUpdateRequest'
+            example:
+              department: "Finance"
+              phone: "+919876543211"
+              managerId : 1060
+      responses:
+        '200':
+          description: Successfully updated employee record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+              example:
+                employeeId: 1058
+                firstName: "Anita"
+                lastName: "Sharma"
+                email: "anita@example.com"
+                department: "Finance"
+                status: "active"
+        '400':
+          $ref: '#/components/responses/UpdateEmployeeBadRequestError'
+          
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+          
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+         
+        '409':
+          $ref: '#/components/responses/CreateUpdateConflictError'
+          
+        '422':
+          $ref: '#/components/responses/UnprocessableContentError'
+         
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+         
+    delete:
+      summary: Delete an employee record
+      description:  Permanently deletes an existing employee record using its unique employee ID. Both active and inactive employees can be deleted. Employees assigned as managers to other employees cannot be deleted. Successful deletion returns 204 No Content without a response body. Subsequent retrieval or deletion requests for the deleted employee return 404 Not Found.
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          description: Unique identifier of the employee to be deleted. Must be a positive integer.
+          schema:
+            type: integer
+            minimum: 1
+            nullable: false
+            example: 1058
+
+      responses:
+        '204':
+          description: Employee deleted successfully. No response body is returned.
+
+        '400':
+          $ref: '#/components/responses/RetrieveDeleteEmployeeBadRequestError'
+
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+          
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+         
+        '409':
+          $ref: '#/components/responses/DeleteConflictError'
+
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+          
+  /api/v2/employees:
+    get:
+      summary: Search Employees
+      description: >
+        Retrieve a paginated list of employees using optional
+        filters, search criteria, and sorting.
+
+        If no filters are provided, employees from all departments
+        and statuses are returned.
+
+        When multiple filters are provided, they are combined
+        using AND logic.
+
+        Filtering and sorting are applied before pagination.
+
+        If multiple employees have the same value for sortBy,
+        the results are sorted by employeeId in ascending order
+        as a secondary sorting criterion.
+
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: department
+          in: query
+          required: false
+          description: Filter by department.
+          schema:
+            type: string
+            enum:
+              - Engineering
+              - HR
+              - Finance
+              - Marketing
+        - name: status
+          in: query
+          required: false
+          description: Filter by employee status.
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive partial search across first name, last name, and email.
+          schema: 
+            type: string
+            minLength: 2
+            maxLength: 100
+            
+        - name: page
+          in: query
+          required: false
+          description: Page number
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of employees per page.
+          schema: 
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          required: false
+          description: Field used for sorting.
+          schema:
+            type: string
+            default: employeeId
+            enum:
+              - employeeId
+              - firstName
+              - lastName
+              - department
+        - name: sortOrder
+          in: query
+          required: false
+          description: Sort direction.
+          schema: 
+            type: string
+            default: asc
+            enum:
+              - asc
+              - desc
+              
+      responses:
+        '200':
+            description: >
+                  Search completed successfully.
+                  If no employees match the search criteria, the API returns
+                  an empty employees array, totalItems as 0, and totalPages as 0.
+                  If the requested page exceeds the available pages, the API
+                  returns an empty employees array instead of a 404 error.
+            content:
+              application/json:
+                schema:
+                    $ref: '#/components/schemas/EmployeeSearchResponse'
+                examples:
+                  employeesFound:
+                    summary: Employees matching the search criteria
+                    value:
+                      employees:
+                        - employeeId: 1058
+                          firstName: "Anita"
+                          lastName: "Sharma"
+                          email: "anita@example.com"
+                          department: "Engineering"
+                          status: "active"
+                        - employeeId: 1062
+                          firstName: "Anjali"
+                          lastName: "Rao"
+                          email: "anjali@example.com"
+                          department: "Engineering"
+                          status: "active"  
+                      pagination: 
+                            page: 1
+                            pageSize: 2
+                            totalItems: 12
+                            totalPages: 6
+                            hasNextPage: true
+                            hasPreviousPage: false
+                  noEmployeesFound:
+                    summary: No employees match the search criteria
+                    value:
+                      employees: []
+                      pagination:
+                            page: 1
+                            pageSize: 20
+                            totalItems: 0
+                            totalPages: 0
+                            hasNextPage: false
+                            hasPreviousPage: false
+        '400':
+          $ref: '#/components/responses/SearchEmployeeBadRequestError'
+          
+        '401': 
+          $ref: '#/components/responses/UnauthorizedError'
+          
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+          
+
+
+    post:
+      summary: Create a new employee record.
+      description: Add a new employee to the system.
+
+      security:
+        - BearerAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeRequest'
+            example:
+              firstName: "Anita"
+              lastName: "Sharma"
+              email: "anita@example.com"
+              department: "Engineering"
+              employmentType: "full-time"
+              phone: "+919876543210"
+              managerId: 1050
+
+      responses:
+        '201':
+          description: Employee created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+              example:
+                  employeeId: 1058
+                  firstName: "Anita"
+                  lastName: "Sharma"
+                  email: "anita@example.com"
+                  department: "Engineering"
+                  status: "active"
+        '400':
+          $ref: '#/components/responses/CreateEmployeeBadRequestError'
+
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+          
+        '409':
+          $ref: '#/components/responses/CreateUpdateConflictError'
+
+        '422':
+          $ref: '#/components/responses/UnprocessableContentError'
+        
+        '500':
+          $ref: '#/components/responses/InternalServerError'
