@@ -24,7 +24,6 @@ Include the following header in every API request:
 "Authorization": "Bearer <token>"
 ```
 
-
 > **Note**: `https://api.example.com` is an illustrative base URL and must be replaced with the actual API base URL.
 
 ### Using cURL
@@ -53,7 +52,7 @@ If authentication succeeds, the employee exists, and the request satisfies all o
 
 Postman automatically includes the following header in the request:
 ```http
- Authorization: Bearer <token>
+ "Authorization": "Bearer <token>"
 ```
 **Expected result**: If the request is valid and the employee exists, the API returns 200 OK with the requested employee details in JSON format.
 
